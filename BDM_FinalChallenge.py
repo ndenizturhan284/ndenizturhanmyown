@@ -9,6 +9,10 @@ from sklearn.linear_model import LinearRegression
 import numpy as np
 import re
 from operator import add
+import csv
+import io
+import sys
+
 
 def do_csv(file):
     output = io.StringIO()
@@ -115,15 +119,16 @@ def all_ids(partId, records):
     for row in reader:
         yield (int(row[0]),(0,0,0,0,0,0))
                 
-def main(sc):
-    v1 = sc.mapPartitionsWithIndex(violation)
-    cntr = sc.mapPartitionsWithIndex(centerline)
-    v1.join(cntr).filter(lambda x: ((x[1][0][0][-1]%2==1 and x[1][0][0] <= x[1][1][2] and x[1][0][0] >= x[1][1][1])                                or (x[1][0][0][-1]%2==0 and x[1][0][0] <= x[1][1][4] and x[1][0][0] >= x[1][1][3]))).map(lambda x: ((x[1][1][0],x[1][0][1]), 1)).reduceByKey(lambda x,y: x+y).map(lambda x: ((x[0][0]), (x[0][1], x[1]))).groupByKey().mapValues(dict).map(put_years).map(regression).union(phid).reduceByKey(lambda x,y: (x[0]+y[0], x[1]+y[1], x[2]+y[2], x[3]+y[3], x[4]+y[4], x[5]+y[5])).map(lambda x: (x[0],x[1][0],x[1][1],x[1][2],x[1][3],x[1][4],x[1][5])).sortBy(lambda x: x[0]).collect()
+def main(sc1, sc2):
+    v1 = sc1.mapPartitionsWithIndex(violation)
+    cntr = sc2.mapPartitionsWithIndex(centerline)
+    v1.join(cntr).filter(lambda x: ((x[1][0][0][-1]%2==1 and x[1][0][0] <= x[1][1][2] and x[1][0][0] >= x[1][1][1])                                or (x[1][0][0][-1]%2==0 and x[1][0][0] <= x[1][1][4] and x[1][0][0] >= x[1][1][3]))).map(lambda x: ((x[1][1][0],x[1][0][1]), 1)).reduceByKey(lambda x,y: x+y).map(lambda x: ((x[0][0]), (x[0][1], x[1]))).groupByKey().mapValues(dict).map(put_years).map(regression).union(phid).reduceByKey(lambda x,y: (x[0]+y[0], x[1]+y[1], x[2]+y[2], x[3]+y[3], x[4]+y[4], x[5]+y[5])).map(lambda x: (x[0],x[1][0],x[1][1],x[1][2],x[1][3],x[1][4],x[1][5])).sortBy(lambda x: x[0]).map(do_csv).saveAsTextFile(sys.argv[1])
     
     
 if __name__ == '__main__':
     sc = SparkContext()
-    sc1=sc.textFile(sys.argv[1])    
-    main(sc1)
+    vfiles=sc.textFile("/data/share/bdm/nyc_parking_violations/*.csv", use_unicode=True)
+    cent = sc.textFile("/data/share/bdm/nyc_cscl.csv", use_unicode=True)    
+    main(vfiles, cent)
     
 
